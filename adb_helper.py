@@ -6,6 +6,7 @@ class DeviceDebug:
         pass
     
     def get_devices(self):
+        # Lấy thông tin toàn bộ các thiết bị
         devices = adb.device_list()
         listDevices = {}
         for i in devices:
