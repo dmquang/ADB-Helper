@@ -1,7 +1,7 @@
-import os
+import os, subprocess, cv2
 from adbutils import adb
 
-class DeviceDebug:
+class ADBHelper:
     def __init__(self):
         pass
     
@@ -11,9 +11,9 @@ class DeviceDebug:
         listDevices = {}
         for i in devices:
             os.system(f'adb -s {i.serial} shell input keyevent 3')
-            platformVersion = os.popen(f'adb -s {i.serial} shell getprop ro.build.version.release').read().split()[0]
-            deviceName = os.popen(f'adb -s {i.serial} shell getprop ro.product.model').read().split()[0]
-            result = os.popen(f'adb -s {i.serial} shell "dumpsys activity activities | grep mResumedActivity"').read().replace(' ', '+')
+            platformVersion = subprocess.run(f'adb -s {i.serial} shell getprop ro.build.version.release', text=True, stdout=subprocess.PIPE).stdout.split()[0]
+            deviceName = subprocess.run(f'adb -s {i.serial} shell getprop ro.product.model', text=True, stdout=subprocess.PIPE).stdout.split()[0]
+            result = subprocess.run(f'adb -s {i.serial} shell "dumpsys activity activities | grep mResumedActivity"', text=True, stdout=subprocess.PIPE).stdout.replace(' ', '+')
             pack_and_act = result.replace(' ', '+').split('+com.')[1].split('+')[0]
             appPackage = 'com.' + pack_and_act.split('/')[0]
             appActivity = pack_and_act.split('/')[1]
@@ -26,16 +26,76 @@ class DeviceDebug:
             }
         return listDevices
     
+    def install_APK(self, device_id, apk_path):
+        # Cài đặt file APK
+        subprocess.run(f'adb -s {device_id} install "{apk_path}"', text=True, stdout=subprocess.PIPE).stdout
+        return
+    
     def check_exits(self, device_id, appPackage):
-        result = os.popen(f'adb -s {device_id} shell pm list packages').read()
+        # Kiểm tra nếu ứng dụng đã được cài đặt trên thiết bị
+        result = subprocess.run(f'adb -s {device_id} shell pm list packages', text=True, stdout=subprocess.PIPE).stdout
         if not appPackage in result:
             return False
         return True
-    
-    def install_APK(self, device_id, apk_path):
-        os.system(f'adb -s {device_id} install "{apk_path}"')
 
+    def open_app(self, device_id, appPackage, appActivity) -> str:
+        # Mở ứng dụng trên thiết bị
+        result = subprocess.run(f'adb -s {device_id} shell am start -n {appPackage}/{appActivity}', text=True, stdout=subprocess.PIPE).stdout
+
+    def transfer_media(self, device_id, media_path) -> str:
+        # Chuyển toàn bộ 1 thư mục media sang thiết bị
+        transfer = subprocess.run(f'adb -s {device_id} push "{media_path}" /sdcard/Pictures/', text=True, stdout=subprocess.PIPE).stdout.strip().split(': ')[1]
+        return transfer # 90 files pushed, 0 skipped. 9.6 MB/s (5063214 bytes in 0.504s)
+
+    def click_screen(self, device_id, coordinates:tuple) -> bool:
+        # Click vào một vị trí trên màn hình thiết bị theo toạ độ
+        # coordinates: (x, y)
+        xtap, ytap = coordinates
+        result = subprocess.run(f'adb -s {device_id} shell input tap {xtap} {ytap}', text=True, stdout=subprocess.PIPE).stdout
+        return True
     
+    def swipe_screen(self, device_id, start_coordinates:tuple, end_coordinates:tuple, duration:int) -> bool:
+        # Thực hiện thao tác vuốt màn hình từ một vị trí đến một vị trí khác trên thiết bị Android. Thời gian thực hiện vuốt được điều chỉnh bằng tham số duration.
+        xtap1, ytap1 = start_coordinates
+        xtap2, ytap2 = end_coordinates
+        result = subprocess.run(f'adb -s {device_id} shell input swipe {xtap1} {ytap1} {xtap2} {ytap2} {duration}', text=True, stdout=subprocess.PIPE).stdout
+        return True
+    
+    def click_image(self, device_id, template_path: str, threshold=0.8) -> bool:
+        # Click vào vị trí của một đối tượng dựa trên hình ảnh mẫu.
+        # threshold: Ngưỡng để xác định sự khớp giữa mẫu và ảnh (mặc định là 0.8).
+
+        # Chụp màn hình của thiết bị
+        screenshot_path = f"{device_id}-screen.png"
+        subprocess.run(f'adb -s {device_id} exec-out screencap -p > {screenshot_path}', shell=True)
+        
+        # Đọc ảnh chụp màn hình và ảnh mẫu
+        screen = cv2.imread(screenshot_path)
+        template = cv2.imread(template_path)
+        
+        if screen is None or template is None:
+            print("Không đọc được ảnh chụp màn hình hoặc ảnh mẫu.")
+            return False
+        
+        # Tìm đối tượng trong ảnh màn hình
+        result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
+        
+        # Lấy vị trí khớp tốt nhất
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        
+        # Nếu giá trị khớp lớn hơn hoặc bằng ngưỡng, click vào đối tượng
+        if max_val >= threshold:
+            top_left = max_loc
+            template_height, template_width = template.shape[:2]
+            center_x = top_left[0] + template_width // 2
+            center_y = top_left[1] + template_height // 2
+            
+            # Click vào vị trí (center_x, center_y) trên thiết bị
+            subprocess.run(f'adb -s {device_id} shell input tap {center_x} {center_y}', shell=True)
+            return True
+        else:
+            print("Không tìm thấy đối tượng.")
+            return False
 
 
 
