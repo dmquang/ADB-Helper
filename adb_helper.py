@@ -1,11 +1,12 @@
-import os, subprocess, cv2
 from adbutils import adb
+import os, subprocess, cv2, re
+import xml.etree.ElementTree as ET
 
 class ADBHelper:
     def __init__(self):
         pass
     
-    def get_devices(self):
+    def get_devices(self) -> list:
         # Lấy thông tin toàn bộ các thiết bị
         devices = adb.device_list()
         listDevices = {}
@@ -22,8 +23,9 @@ class ADBHelper:
                 'deviceName': deviceName,
                 'appPackage': appPackage,
                 'appActivity': appActivity,
-                'udid': i.serial
+                'udid': i.serial    
             }
+
         return listDevices
     
     def install_APK(self, device_id, apk_path):
@@ -41,6 +43,7 @@ class ADBHelper:
     def open_app(self, device_id, appPackage, appActivity) -> str:
         # Mở ứng dụng trên thiết bị
         result = subprocess.run(f'adb -s {device_id} shell am start -n {appPackage}/{appActivity}', text=True, stdout=subprocess.PIPE).stdout
+        return result
 
     def transfer_media(self, device_id, media_path) -> str:
         # Chuyển toàn bộ 1 thư mục media sang thiết bị
@@ -80,10 +83,10 @@ class ADBHelper:
         # Tìm đối tượng trong ảnh màn hình
         result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
         
-        # Lấy vị trí khớp tốt nhất
+        # Lấy vị trí khớp
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
         
-        # Nếu giá trị khớp lớn hơn hoặc bằng ngưỡng, click vào đối tượng
+        # Nếu giá trị khớp lớn hơn hoặc bằng ngưỡng so sánh, click vào đối tượng
         if max_val >= threshold:
             top_left = max_loc
             template_height, template_width = template.shape[:2]
@@ -96,6 +99,44 @@ class ADBHelper:
         else:
             print("Không tìm thấy đối tượng.")
             return False
+
+    def click_id(self, device_id: str, resource_id: str) -> bool:
+        # Click vào đối tượng theo resource-id.
+        # resource_id: Giá trị resource-id cần tìm.
+
+        try:
+            # Lấy XML hiện tại từ UI Automator
+            subprocess.run(f'adb -s {device_id} shell uiautomator dump', text=True, stdout=subprocess.PIPE)
+            
+            # Lấy nội dung XML
+            xml_content = subprocess.run(f'adb -s {device_id} shell cat /sdcard/window_dump.xml', text=True, stdout=subprocess.PIPE, encoding='utf-8')
+
+            # Phân tích root XML để tìm resource-id và lấy tọa độ trung tâm
+            root = ET.fromstring(xml_content.stdout)
+
+            for elem in root.iter():
+                if elem.attrib.get('resource-id') == resource_id:
+                    bounds = elem.attrib.get('bounds')
+
+                    # Tính tọa độ trung tâm của đối tượng
+                    bounds = re.findall(r'\d+', bounds)
+                    if len(bounds) == 4:
+                        x1, y1, x2, y2 = map(int, bounds)
+                        center_x = (x1 + x2) // 2
+                        center_y = (y1 + y2) // 2
+                        
+                        # Click vào tọa độ
+                        subprocess.run(f'adb -s {device_id} shell input tap {center_x} {center_y}', shell=True)
+                        return True
+
+            # Nếu không tìm thấy đối tượng
+            print("Không tìm thấy đối tượng")
+            return False
+
+        except Exception as e:
+            print(f"Lỗi: {e}")
+            return False
+
 
 
 
