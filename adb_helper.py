@@ -1,6 +1,7 @@
 from adbutils import adb
 import os, subprocess, cv2, re
 import xml.etree.ElementTree as ET
+import sqlite3, json
 
 class ADBHelper:
     def __init__(self):
@@ -22,7 +23,7 @@ class ADBHelper:
                 'platformVersion': platformVersion,
                 'deviceName': deviceName,
                 'appPackage': appPackage,
-                'appActivity': appActivity,
+                'appActivity': appActivity, 
                 'udid': i.serial    
             }
 
@@ -50,13 +51,17 @@ class ADBHelper:
         transfer = subprocess.run(f'adb -s {device_id} push "{media_path}" /sdcard/Pictures/', text=True, stdout=subprocess.PIPE).stdout.strip().split(': ')[1]
         return transfer # 90 files pushed, 0 skipped. 9.6 MB/s (5063214 bytes in 0.504s)
 
-    def click_screen(self, device_id, coordinates:tuple) -> bool:
+    def input_text(self, device_id, text_value: str):
+        subprocess.run(f'adb -s {device_id} shell input text "{text_value}"', shell=True)
+        return True
+
+    def click_screen(self, device_id, coordinates: tuple) -> bool:
         # Click vào một vị trí trên màn hình thiết bị theo toạ độ
         # coordinates: (x, y)
         xtap, ytap = coordinates
         result = subprocess.run(f'adb -s {device_id} shell input tap {xtap} {ytap}', text=True, stdout=subprocess.PIPE).stdout
         return True
-    
+
     def swipe_screen(self, device_id, start_coordinates:tuple, end_coordinates:tuple, duration:int) -> bool:
         # Thực hiện thao tác vuốt màn hình từ một vị trí đến một vị trí khác trên thiết bị Android. Thời gian thực hiện vuốt được điều chỉnh bằng tham số duration.
         xtap1, ytap1 = start_coordinates
@@ -136,9 +141,8 @@ class ADBHelper:
         except Exception as e:
             print(f"Lỗi: {e}")
             return False
-
-
-
+        
+        
 
 class LD_Player:
     def __init__(self, path) -> None:
