@@ -18,15 +18,25 @@ Before using, make sure you have installed:
 ```python
 from adb_helper import ADBHelper
 
-adb_helper = ADBHelper()
+device_id = 'emulator-5556'  # Device ID
+adb_helper = ADBHelper(device_id)
 ```
 
 1. Get Device List
 ```python
-from adb_helper import ADBHelper
-
-device_id = 'emulator-5556'  # Device ID
-adb_helper = ADBHelper(device_id)
+devices = adb_helper.get_devices()
+"""
+devices = [
+            {
+                'platformVersion': platformVersion,
+                'deviceName': deviceName,
+                'appPackage': appPackage,
+                'appActivity': appActivity, 
+                'udid': i.serial    
+            },
+            ...
+        ]
+"""
 ```
 
 2. Install APK File on Device
@@ -109,24 +119,6 @@ adb_helper.click_text(text)
 appPackage = 'com.example.app' # Application package name
 output_path = 'path/to/output/' # Output directory
 adb_helper.export_APK(appPackage, output_path)
-```
-
-#### Others Funtions
-1. Get Device List
-```python
-devices = adb_helper.get_devices()
-"""
-devices = [
-            {
-                'platformVersion': platformVersion,
-                'deviceName': deviceName,
-                'appPackage': appPackage,
-                'appActivity': appActivity, 
-                'udid': i.serial    
-            },
-            ...
-        ]
-"""
 ```
 
 ---
