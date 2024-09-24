@@ -1,7 +1,12 @@
+"""
+Author: Rudyy Greyrat
+GitHub: dmquang
+Telegram: @rudyy_greyrat
+"""
+
 from adbutils import adb
 import os, subprocess, cv2, re
 import xml.etree.ElementTree as ET
-import sqlite3, json
 
 class ADBHelper:
     def __init__(self):
@@ -142,31 +147,30 @@ class ADBHelper:
             print(f"Lỗi: {e}")
             return False
         
-        
+    def export_APK(self, device_id: str, appPackage: str, output_path: str) -> bool:
+        # Xuất APK từ thiết bị Android thông qua ADB.
+        # appPackage: Tên gói của ứng dụng cần xuất APK.
 
-class LD_Player:
-    def __init__(self, path) -> None:
-        # Khai báo đường dẫn LD Player
-        # D:\LDPlayer\LDPlayer9\dnconsole.exe
-        self.path = path
-    
-    def shell(self, command:str):
-        # thực thi lệnh
-        os.system(f'{self.path} {command}')
+        try:
+            # Lấy APK path từ thiết bị
+            get_apk_command = f"adb -s {device_id} shell pm path {appPackage}"
+            result = subprocess.run(get_apk_command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    def add_device(self, name):
-        # Thêm thiết bị
-        self.shell(f'add --name {name}')
+            if result.returncode == 0 and 'package:' in result.stdout:
+                apk_path = result.stdout.split('package:')[1].strip()
 
-    def copy_device(self, name, soucre_device):
-        # Sao chép thiết bị
-        self.shell(f'copy --name {name} --from {soucre_device}')
-    
-    def remove_device(self, name):
-        # Xóa thiết bị
-        self.shell(f'remove --name {name}')
+                # Lệnh để pull file APK từ thiết bị về máy tính
+                pull_apk_command = f"adb -s {device_id} pull {apk_path} {output_path}"
+                pull_result = subprocess.run(pull_apk_command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    def fast_sort(self):
-        # Auto sắp xếp
-        self.shell('sortWnd')
+                if pull_result.returncode == 0:
+                    print(f"APK successfully pulled to {output_path}")
+                else:
+                    print(f"Failed to pull APK. Error: {pull_result.stderr}")
+            else:
+                print(f"Failed to get APK path for {appPackage}. Error: {result.stderr}")
+        except Exception as e:
+            print(f"Error: {e}")
+
+
     
