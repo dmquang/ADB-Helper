@@ -109,7 +109,7 @@ adb_helper.swipe_screen(start_coords, end_coords, 500)
 
 9. Click by Image
 ![Template image](./images/ig.png)
-![Screenshot image](./images/emulator-5556-screen.png)
+<img src="./images/emulator-5556-screen.png alt="Sreenshot image" width="200"/>
 
 ```python
 # Click vào vị trí của một đối tượng dựa trên hình ảnh mẫu.
