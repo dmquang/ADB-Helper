@@ -1,3 +1,5 @@
+#ADB Helper Version: 1.2.0
+
 """
 Author: Rudyy Greyrat
 GitHub: dmquang
@@ -29,10 +31,11 @@ class ADBHelper:
             appActivity = pack_and_act.split('/')[1]
             listDevices[i.serial] = {
                 'platformVersion': platformVersion,
+                'platformName': 'Android',
                 'deviceName': deviceName,
                 'appPackage': appPackage,
                 'appActivity': appActivity, 
-                'udid': i.serial    
+                'udid': i.serial
             }
         return listDevices
     
@@ -50,22 +53,26 @@ class ADBHelper:
             return False
         return True
 
-    def open_app(self, appPackage, appActivity) -> str:
+    def open_app(self, appPackage: str, appActivity: str) -> str:
         # Mở ứng dụng trên thiết bị
         # Open Application on device
         result = subprocess.run(f'adb -s {self.device_id} shell am start -n {appPackage}/{appActivity}', text=True, stdout=subprocess.PIPE).stdout
         return result
 
-    def transfer_media(self, media_path) -> str:
+    def transfer_media(self, media_path: str) -> str:
         # Chuyển toàn bộ 1 thư mục media sang thiết bị
         # Transfer a media folder to device
+        # media_path = 'path/to/media/'
         transfer = subprocess.run(f'adb -s {self.device_id} push "{media_path}" /sdcard/Pictures/', text=True, stdout=subprocess.PIPE).stdout.strip().split(': ')[1]
         return transfer # 90 files pushed, 0 skipped. 9.6 MB/s (5063214 bytes in 0.504s)
 
     def input_text(self, text_value: str):
+        # Nhập chữ vào thiết bị
+        # Input text to device
+        # text_value: string
         for char in text_value:
             subprocess.run(f'adb -s {self.device_id} shell input text "{char}"', shell=True)
-            time.sleep(0.01)
+            time.sleep(0.005)
         return True
 
     def click_screen(self, coordinates: tuple) -> bool:
@@ -79,6 +86,8 @@ class ADBHelper:
     def swipe_screen(self, start_coordinates:tuple, end_coordinates:tuple, duration:int) -> bool:
         # Thực hiện thao tác vuốt màn hình từ một vị trí đến một vị trí khác trên thiết bị Android. Thời gian thực hiện vuốt được điều chỉnh bằng tham số duration.
         # Swipe the screen from one position to another on the Android device. The time to perform the swipe is adjusted by the duration parameter.
+        # start_coordinates: (x1, y1)
+        # end_coordinates: (x2, y2)
         xtap1, ytap1 = start_coordinates
         xtap2, ytap2 = end_coordinates
         result = subprocess.run(f'adb -s {self.device_id} shell input swipe {xtap1} {ytap1} {xtap2} {ytap2} {duration}', text=True, stdout=subprocess.PIPE).stdout
@@ -86,14 +95,16 @@ class ADBHelper:
     
     def click_image(self, template_path: str, threshold=0.8) -> bool:
         # Click vào vị trí của một đối tượng dựa trên hình ảnh mẫu.
+        # template_path: Đường dẫn đến hình ảnh mẫu cần tìm kiếm trên màn hình thiết bị.
         # threshold: Ngưỡng để xác định sự khớp giữa mẫu và ảnh (mặc định là 0.8).
         # ---
         # Click on the position of an object based on a template image.
+        # template_path: Path to the template image to search for on the device screen.
         # threshold: Threshold to determine the match between the template and the image (default is 0.8).
 
         # Chụp màn hình của thiết bị
         # Capture the device screen
-        screenshot_path = f"{self.device_id}-screen.png"
+        screenshot_path = f"images/{self.device_id}-screen.png"
         subprocess.run(f'adb -s {self.device_id} exec-out screencap -p > {screenshot_path}', shell=True)
         
         # Đọc ảnh chụp màn hình và ảnh mẫu
@@ -102,7 +113,8 @@ class ADBHelper:
         template = cv2.imread(template_path)
         
         if screen is None or template is None:
-            print("Không đọc được ảnh chụp màn hình hoặc ảnh mẫu.")
+            print(f"{self.device_id} - Failed to read the screenshot or template image.")
+            os.remove(screenshot_path)
             return False
         
         # Tìm đối tượng trong ảnh màn hình
@@ -124,17 +136,27 @@ class ADBHelper:
             # Click vào vị trí (center_x, center_y) trên thiết bị
             # Click on the position (center_x, center_y) on the device
             subprocess.run(f'adb -s {self.device_id} shell input tap {center_x} {center_y}', shell=True)
+            os.remove(screenshot_path)
             return True
         else:
-            print("Can't find the object.")
+            print(f"{self.device_id} - Can't find the object.")
+            os.remove(screenshot_path)
             return False
 
-    def click_id(self, resource_id: str) -> bool:
-        # Click vào đối tượng theo resource-id.
-        # resource_id: Giá trị resource-id cần tìm.
+    def click_attribute(self, attribute: str, value: str) -> bool:
+        # Không dùng cho class
+        # Đối với class, dùng click_class() thay thế
+
+        # Not used for class
+        # For class, use click_class() instead
+
+        # Click vào đối tượng theo thuộc tính và giá trị của thuộc tính đó.
+        # attribute: Tên thuộc tính (ví dụ: text, content-desc, resource-id).
+        # value: Giá trị của thuộc tính đó.
         # ---
-        # Click on the object by resource-id.
-        # resource_id: The resource-id value to find.
+        # Click on the object by attribute and the value of that attribute.
+        # attribute: Attribute name (e.g. text, content-desc, resource-id).
+        # value: Value of that attribute.
 
         try:
             # Lấy XML hiện tại từ UI Automator
@@ -150,7 +172,7 @@ class ADBHelper:
             root = ET.fromstring(xml_content.stdout)
 
             for elem in root.iter():
-                if elem.attrib.get('resource-id') == resource_id:
+                if elem.attrib.get(attribute) and value in elem.attrib.get(attribute):
                     bounds = elem.attrib.get('bounds')
 
                     # Tính tọa độ trung tâm của đối tượng
@@ -168,56 +190,11 @@ class ADBHelper:
 
             # Nếu Can't find the object
             # If the object is not found
-            print("Can't find the object")
+            print(f"{self.device_id} - Can't find the object")
             return False
 
         except Exception as e:
-            print(f"Lỗi: {e}")
-            return False
-        
-    def click_desc(self, content_desc: str) -> bool:
-        # Click vào đối tượng theo content-desc.
-        # content_desc: Giá trị content-desc cần tìm.
-        # ---
-        # Click on the object by content-desc.
-        # content_desc: The content-desc value to find.
-
-        try:
-            # Lấy XML hiện tại từ UI Automator
-            # Get the current XML from UI Automator
-            subprocess.run(f'adb -s {self.device_id} shell uiautomator dump', text=True, stdout=subprocess.PIPE)
-            
-            # Lấy nội dung XML
-            # Get the XML content
-            xml_content = subprocess.run(f'adb -s {self.device_id} shell cat /sdcard/window_dump.xml', text=True, stdout=subprocess.PIPE, encoding='utf-8')
-
-            # Phân tích root XML để tìm content-desc và lấy tọa độ trung tâm
-            # Parse the root XML to find the content-desc and get the center coordinates
-            root = ET.fromstring(xml_content.stdout)
-
-            for elem in root.iter():
-                if elem.attrib.get('content-desc') == content_desc:
-                    bounds = elem.attrib.get('bounds')
-
-                    # Tính tọa độ trung tâm của đối tượng
-                    # Calculate the center coordinates of the object
-                    bounds = re.findall(r'\d+', bounds)
-                    if len(bounds) == 4:
-                        x1, y1, x2, y2 = map(int, bounds)
-                        center_x = (x1 + x2) // 2
-                        center_y = (y1 + y2) // 2
-                        
-                        # Click vào tọa độ
-                        subprocess.run(f'adb -s {self.device_id} shell input tap {center_x} {center_y}', shell=True)
-                        return True
-
-            # Nếu Can't find the object
-            # If the object is not found
-            print("Can't find the object")
-            return False
-        
-        except Exception as e:
-            print(f"Lỗi: {e}")
+            print(f"{self.device_id} - Error: {e}")
             return False
         
     def click_class(self, class_name: str, index: str) -> bool:
@@ -261,26 +238,23 @@ class ADBHelper:
 
             # Nếu Can't find the object
             # If the object is not found
-            print("Can't find the object")
+            print(f"{self.device_id} - Can't find the object")
             return False
         
         except Exception as e:
-            print(f"Lỗi: {e}")
+            print(f"{self.device_id} - Error: {e}")
             return False
 
-    def click_text(self, text: str) -> bool:
-        """
-        *** LƯU Ý ***
-        Chỉ click được khi XML của đối tượng tồn tại thuộc tính text (text="")
-        ---
-        **** NOTE ****
-        Only clickable when the object's XML has the text attribute (text="")
-        """
-        # Click vào đối tượng theo text.
-        # text: Giá trị text cần tìm.
+    def check_XML(self, attribute: str, value: str) -> bool:
+        # Kiểm tra xem có đối tượng nào trong XML có thuộc tính và giá trị cho trước hay không.
+        # attribute: Tên thuộc tính cần kiểm tra.
+        # value: Giá trị của thuộc tính cần kiểm tra.
         # ---
-        # Click on the object by text.
-        # text: The text value to find.
+        # Check if there is any object in the XML with the given attribute and value.
+        # attribute: The name of the attribute to check.
+        # value: The value of the attribute to check.
+
+        # attribute = class, text, content-desc, resource-id, ... (str)
 
         try:
             # Lấy XML hiện tại từ UI Automator
@@ -296,29 +270,18 @@ class ADBHelper:
             root = ET.fromstring(xml_content.stdout)
 
             for elem in root.iter():
-                if elem.attrib.get('text') == text:
-                    bounds = elem.attrib.get('bounds')
-
+                if elem.attrib.get(attribute) == value:
+                    return True
                     # Tính tọa độ trung tâm của đối tượng
                     # Calculate the center coordinates of the object
-                    bounds = re.findall(r'\d+', bounds)
-                    if len(bounds) == 4:
-                        x1, y1, x2, y2 = map(int, bounds)
-                        center_x = (x1 + x2) // 2
-                        center_y = (y1 + y2) // 2
-                        
-                        # Click vào tọa độ
-                        # Click on the coordinates
-                        subprocess.run(f'adb -s {self.device_id} shell input tap {center_x} {center_y}', shell=True)
-                        return True
 
             # Nếu Can't find the object
             # If the object is not found
-            print("Can't find the object")
+            print(f"{self.device_id} - Can't find the object")
             return False
 
         except Exception as e:
-            print(f"Lỗi: {e}")
+            print(f"{self.device_id} - Error: {e}")
             return False
 
     def export_APK(self, appPackage: str, output_path: str) -> bool:
@@ -343,11 +306,21 @@ class ADBHelper:
                 pull_result = subprocess.run(pull_apk_command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                 if pull_result.returncode == 0:
-                    print(f"APK successfully pulled to {output_path}")
+                    print(f"{self.device_id} - APK successfully pulled to {output_path}")
                 else:
-                    print(f"Failed to pull APK. Error: {pull_result.stderr}")
+                    print(f"{self.device_id} - Failed to pull APK. Error: {pull_result.stderr}")
             else:
-                print(f"Failed to get APK path for {appPackage}. Error: {result.stderr}")
+                print(f"{self.device_id} - Failed to get APK path for {appPackage}. Error: {result.stderr}")
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"{self.device_id} - Error: {e}")
 
+    def key_envent(self, event_code: int) -> bool:
+        # Gửi event phím tắt tới thiết bị thông qua ADB.
+        # Để xem danh sách các phím tắt có sẵn, hãy sử dụng lệnh "adb shell input keyevent".
+        # ---
+        # Send key event to the device via ADB.
+        # To see the list of available shortcuts, use the "adb shell input keyevent" command.
+
+        subprocess.run(f'adb -s {self.device_id} shell input keyevent {event_code}', text=True, stdout=subprocess.PIPE)
+        return True
+    
