@@ -189,6 +189,19 @@ adb_helper.export_APK(appPackage, output_path)
 adb_helper.key_envent(event_code)
 ```
 
+15. Find XML's Objects by Attribute
+```python
+# Tìm kiếm các đối tượng có cùng thuộc tính và giá trị cho trước trong XML hiện tại và trả về tọa độ trung tâm của chúng dưới dạng một danh sách các tuple (x, y).
+# attribute: Tên thuộc tính cần tìm kiếm.
+# value: Giá trị của thuộc tính cần tìm kiếm.
+# ---
+# Search for objects with the same attribute and value in the current XML and return the center coordinates of them as a list of tuples (x, y).
+# attribute: The name of the attribute to search for.
+# value: The value of the attribute to search for.
+
+adb_helper.find_XML(attribute, value)
+```
+
 
 ---
 

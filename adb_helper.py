@@ -1,5 +1,3 @@
-#ADB Helper Version: 1.2.0
-
 """
 Author: Rudyy Greyrat
 GitHub: dmquang
@@ -9,12 +7,17 @@ Telegram: @rudyy_greyrat
 from adbutils import adb
 import os, subprocess, cv2, re, time
 import xml.etree.ElementTree as ET
+import uiautomator2 as u2
 
 class ADBHelper:
-    def __init__(self, device_id) -> None:
+    def __init__(self, device_id, ui: u2.Device = None) -> None:
         # Khởi tạo thiết bị với device_id tương ứng
         # Initialize device with corresponding device_id
         self.device_id = device_id
+        if ui:
+            self.ui = ui
+        else:
+            self.ui = u2.connect(device_id)
     
     def get_devices(self) -> list:
         # Lấy thông tin toàn bộ các thiết bị
@@ -53,23 +56,19 @@ class ADBHelper:
             return False
         return True
 
-    def open_app(self, appPackage: str, appActivity: str) -> str:
+    def open_app(self, appPackage, appActivity) -> str:
         # Mở ứng dụng trên thiết bị
         # Open Application on device
         result = subprocess.run(f'adb -s {self.device_id} shell am start -n {appPackage}/{appActivity}', text=True, stdout=subprocess.PIPE).stdout
         return result
 
-    def transfer_media(self, media_path: str) -> str:
+    def transfer_media(self, media_path) -> str:
         # Chuyển toàn bộ 1 thư mục media sang thiết bị
         # Transfer a media folder to device
-        # media_path = 'path/to/media/'
         transfer = subprocess.run(f'adb -s {self.device_id} push "{media_path}" /sdcard/Pictures/', text=True, stdout=subprocess.PIPE).stdout.strip().split(': ')[1]
         return transfer # 90 files pushed, 0 skipped. 9.6 MB/s (5063214 bytes in 0.504s)
 
     def input_text(self, text_value: str):
-        # Nhập chữ vào thiết bị
-        # Input text to device
-        # text_value: string
         for char in text_value:
             subprocess.run(f'adb -s {self.device_id} shell input text "{char}"', shell=True)
             time.sleep(0.005)
@@ -86,8 +85,6 @@ class ADBHelper:
     def swipe_screen(self, start_coordinates:tuple, end_coordinates:tuple, duration:int) -> bool:
         # Thực hiện thao tác vuốt màn hình từ một vị trí đến một vị trí khác trên thiết bị Android. Thời gian thực hiện vuốt được điều chỉnh bằng tham số duration.
         # Swipe the screen from one position to another on the Android device. The time to perform the swipe is adjusted by the duration parameter.
-        # start_coordinates: (x1, y1)
-        # end_coordinates: (x2, y2)
         xtap1, ytap1 = start_coordinates
         xtap2, ytap2 = end_coordinates
         result = subprocess.run(f'adb -s {self.device_id} shell input swipe {xtap1} {ytap1} {xtap2} {ytap2} {duration}', text=True, stdout=subprocess.PIPE).stdout
@@ -95,11 +92,9 @@ class ADBHelper:
     
     def click_image(self, template_path: str, threshold=0.8) -> bool:
         # Click vào vị trí của một đối tượng dựa trên hình ảnh mẫu.
-        # template_path: Đường dẫn đến hình ảnh mẫu cần tìm kiếm trên màn hình thiết bị.
         # threshold: Ngưỡng để xác định sự khớp giữa mẫu và ảnh (mặc định là 0.8).
         # ---
         # Click on the position of an object based on a template image.
-        # template_path: Path to the template image to search for on the device screen.
         # threshold: Threshold to determine the match between the template and the image (default is 0.8).
 
         # Chụp màn hình của thiết bị
@@ -159,20 +154,16 @@ class ADBHelper:
         # value: Value of that attribute.
 
         try:
-            # Lấy XML hiện tại từ UI Automator
-            # Get the current XML from UI Automator
-            subprocess.run(f'adb -s {self.device_id} shell uiautomator dump', text=True, stdout=subprocess.PIPE)
-            
             # Lấy nội dung XML
             # Get the XML content
-            xml_content = subprocess.run(f'adb -s {self.device_id} shell cat /sdcard/window_dump.xml', text=True, stdout=subprocess.PIPE, encoding='utf-8')
+            xml_content = self.ui.dump_hierarchy().replace('\n', '')
 
             # Phân tích root XML để tìm resource-id và lấy tọa độ trung tâm
             # Parse the root XML to find the resource-id and get the center coordinates
-            root = ET.fromstring(xml_content.stdout)
+            root = ET.fromstring(xml_content)
 
             for elem in root.iter():
-                if elem.attrib.get(attribute) and value in elem.attrib.get(attribute):
+                if elem.attrib.get(attribute) == value:
                     bounds = elem.attrib.get('bounds')
 
                     # Tính tọa độ trung tâm của đối tượng
@@ -188,9 +179,9 @@ class ADBHelper:
                         subprocess.run(f'adb -s {self.device_id} shell input tap {center_x} {center_y}', shell=True)
                         return True
 
-            # Nếu Can't find the object
+            # Nếu Can't find the object: {value}
             # If the object is not found
-            print(f"{self.device_id} - Can't find the object")
+            print(f"{self.device_id} - Can't find the object: {value}")
             return False
 
         except Exception as e:
@@ -206,18 +197,14 @@ class ADBHelper:
         # class: The class value to find.
         # index: The index value to find.
 
-        try:
-            # Lấy XML hiện tại từ UI Automator
-            # Get the current XML from UI Automator
-            subprocess.run(f'adb -s {self.device_id} shell uiautomator dump', text=True, stdout=subprocess.PIPE)
-            
+        try:            
             # Lấy nội dung XML
             # Get the XML content
-            xml_content = subprocess.run(f'adb -s {self.device_id} shell cat /sdcard/window_dump.xml', text=True, stdout=subprocess.PIPE, encoding='utf-8')
+            xml_content = self.ui.dump_hierarchy().replace('\n', '')
 
             # Phân tích root XML để tìm content-desc và lấy tọa độ trung tâm
             # Parse the root XML to find the class and index and get the center coordinates
-            root = ET.fromstring(xml_content.stdout)
+            root = ET.fromstring(xml_content)
 
             for elem in root.iter():
                 if elem.attrib.get('class') == class_name and elem.attrib.get('index') == index:
@@ -236,7 +223,7 @@ class ADBHelper:
                         subprocess.run(f'adb -s {self.device_id} shell input tap {center_x} {center_y}', shell=True)
                         return True
 
-            # Nếu Can't find the object
+            # Nếu Can't find the object: {value}
             # If the object is not found
             print(f"{self.device_id} - Can't find the object")
             return False
@@ -257,27 +244,21 @@ class ADBHelper:
         # attribute = class, text, content-desc, resource-id, ... (str)
 
         try:
-            # Lấy XML hiện tại từ UI Automator
-            # Get the current XML from UI Automator
-            subprocess.run(f'adb -s {self.device_id} shell uiautomator dump', text=True, stdout=subprocess.PIPE)
-            
             # Lấy nội dung XML
             # Get the XML content
-            xml_content = subprocess.run(f'adb -s {self.device_id} shell cat /sdcard/window_dump.xml', text=True, stdout=subprocess.PIPE, encoding='utf-8')
+            xml_content = self.ui.dump_hierarchy().replace('\n', '')
 
             # Phân tích root XML để tìm text và lấy tọa độ trung tâm
             # Parse the root XML to find the text and get the center coordinates
-            root = ET.fromstring(xml_content.stdout)
+            root = ET.fromstring(xml_content)
 
             for elem in root.iter():
                 if elem.attrib.get(attribute) == value:
                     return True
-                    # Tính tọa độ trung tâm của đối tượng
-                    # Calculate the center coordinates of the object
 
-            # Nếu Can't find the object
+            # Nếu Can't find the object: {value}
             # If the object is not found
-            print(f"{self.device_id} - Can't find the object")
+            print(f"{self.device_id} - Can't find the object: {value}")
             return False
 
         except Exception as e:
@@ -324,3 +305,31 @@ class ADBHelper:
         subprocess.run(f'adb -s {self.device_id} shell input keyevent {event_code}', text=True, stdout=subprocess.PIPE)
         return True
     
+    def find_XML(self, attribute: str, value: str) -> list:
+        # Tìm kiếm các đối tượng có cùng thuộc tính và giá trị cho trước trong XML hiện tại và trả về tọa độ trung tâm của chúng dưới dạng một danh sách các tuple (x, y).
+        # attribute: Tên thuộc tính cần tìm kiếm.
+        # value: Giá trị của thuộc tính cần tìm kiếm.
+        # ---
+        # Search for objects with the same attribute and value in the current XML and return the center coordinates of them as a list of tuples (x, y).
+        # attribute: The name of the attribute to search for.
+        # value: The value of the attribute to search for.
+        
+        objects_list = []
+
+        # Lấy nội dung XML
+        # Get the XML content
+        xml_content = self.ui.dump_hierarchy().replace('\n', '')
+
+        # Phân tích root XML để tìm content-desc và lấy tọa độ trung tâm
+        # Parse the root XML to find the class and index and get the center coordinates
+        root = ET.fromstring(xml_content)
+
+        for elem in root.iter():
+            if elem.attrib.get(attribute) == value:
+                # Thêm đối tượng vào objects_list
+                # Add object to objects_list
+                objects_list.append(elem)
+
+        # Trả về objects_list
+        # Return objects_list
+        return objects_list
